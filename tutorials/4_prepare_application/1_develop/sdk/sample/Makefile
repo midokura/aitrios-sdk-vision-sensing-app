@@ -15,6 +15,9 @@
 #
 ############################################################################
 
+ifeq ($(APPTYPE),en)
+	SUBDIRS += vision_app/single_dnn/encryption
+else
 ifeq ($(APPTYPE),od)
 	SUBDIRS += vision_app/single_dnn/objectdetection
 else
@@ -23,6 +26,7 @@ ifeq ($(APPTYPE),ic)
 else
 	SUBDIRS += vision_app/single_dnn/objectdetection
 	SUBDIRS += vision_app/single_dnn/classification
+endif
 endif
 endif
 

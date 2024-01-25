@@ -77,6 +77,15 @@ build_ic() {
         /bin/sh -c "cd ${PWD}/sdk/sample && make ${BUILD_TYPE} APPTYPE=ic"
 }
 
+build_en() {
+    echo "build_en"
+    builddockerimage
+    docker run --rm \
+        -v $PWD/sdk/:$PWD/sdk/ \
+        $NAME_IMAGE \
+        /bin/sh -c "cd ${PWD}/sdk/sample && make ${BUILD_TYPE} APPTYPE=en"
+}
+
 build_od() {
     echo "build_od"
     builddockerimage
@@ -102,8 +111,10 @@ do
                 APP_TYPE=$OPTARG
             elif [ "$OPTARG" = "od" ]; then
                 APP_TYPE=$OPTARG
+            elif [ "$OPTARG" = "en" ]; then
+                APP_TYPE=$OPTARG
             else
-                echo "-t options must be ic or od."
+                echo "-t options must be ic, od or en."
                 exit 0
             fi;
             ;;
@@ -120,6 +131,8 @@ if [ "$APP_TYPE" = "od" ]; then
     build_od
 elif [ "$APP_TYPE" = "ic" ]; then
     build_ic
+elif [ "$APP_TYPE" = "en" ]; then
+    build_en
 else
     build_ic_od
 fi;

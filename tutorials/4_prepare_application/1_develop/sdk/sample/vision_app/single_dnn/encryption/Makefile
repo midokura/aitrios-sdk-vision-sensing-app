@@ -61,7 +61,7 @@ USER_LDFLAGS   = -z stack-size=32768 \
                  -Wl,--initial-memory=65536,--max-memory=2097152
 CFLAGS        += $(USER_CFLAGS)
 CPPFLAGS      += $(USER_CPPFLAGS) \
-                -I ../../../../sample/include/encryption \
+                -I ../../../../sample/include/encryption
 LDFLAGS       += $(USER_LDFLAGS)
 CPPOBJS        = ./src/vision_app_encryption.o \
                 $(THIRD_PARTY_PATH)/parson/parson.o
