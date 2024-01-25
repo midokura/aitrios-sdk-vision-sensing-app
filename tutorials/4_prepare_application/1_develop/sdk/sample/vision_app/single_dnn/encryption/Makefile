@@ -37,7 +37,7 @@ CFLAGS    = --sysroot=/opt/wasi-sdk/share/wasi-sysroot/ \
             -I ./include \
             -I ../../../../vision_app_sdk/include \
             -I $(THIRD_PARTY_PATH)/include \
-            -I $(THIRD_PARTY_PATH)/include/parson
+            -I $(THIRD_PARTY_PATH)/include/monocypher
 CPPFLAGS := $(CFLAGS)
 LDFLAGS   = --sysroot=/opt/wasi-sdk/share/wasi-sysroot/ \
             -pthread \
@@ -63,10 +63,10 @@ CFLAGS        += $(USER_CFLAGS)
 CPPFLAGS      += $(USER_CPPFLAGS) \
                 -I ../../../../sample/include/encryption
 LDFLAGS       += $(USER_LDFLAGS)
-CPPOBJS        = ./src/vision_app_encryption.o \
-                $(THIRD_PARTY_PATH)/parson/parson.o
-CPPOBJS_OUT    = $(BUILD_DIR)/src/vision_app_encryption.o \
-                $(BUILD_DIR)/$(THIRD_PARTY_PATH)/parson/parson.o
+COBJS          = $(THIRD_PARTY_PATH)/monocypher/monocypher.o
+COBJS_OUT      = $(BUILD_DIR)/$(THIRD_PARTY_PATH)/monocypher/monocypher.o
+CPPOBJS        = ./src/vision_app_encryption.o
+CPPOBJS_OUT    = $(BUILD_DIR)/src/vision_app_encryption.o
 TARGET         = vision_app_encryption
 
 %.o: %.c
@@ -78,9 +78,9 @@ TARGET         = vision_app_encryption
 	mkdir -p $(BUILD_DIR)/$(dir $@)
 	$(CPP) $(CPPFLAGS) -o $@ -c $< -o $(BUILD_DIR)/$@
 
-ALL: $(CPPOBJS)
+ALL: $(COBJS) $(CPPOBJS)
 	mkdir -p $(BUILD_DIR)
-	$(CPP) $(LDFLAGS) -o $(WASM_OUT_DIR)/$(TARGET).wasm $(CPPOBJS_OUT)
+	$(CPP) $(LDFLAGS) -o $(WASM_OUT_DIR)/$(TARGET).wasm $(CPPOBJS_OUT) $(COBJS_OUT)
 
 clean:
 	rm -rf $(CLEAN_DIR)

@@ -16,9 +16,16 @@
  ****************************************************************************/
 
 #include <stdio.h>
+
+// random
+#include <stdlib.h>
+
+// memcpy
 #include <string.h>
 #include <unistd.h>
 #include <pthread.h>
+
+#include <monocypher.h>
 
 #include "vision_app_public.h"
 
@@ -37,11 +44,46 @@
 
 static bool  s_is_evp_exit = false;
 
+//#include "operator_public_key.h"
+
+static uint8_t secret_key[32];
+static uint8_t public_key[32];
+
 /* prevent libc func with multi thread */
 pthread_mutex_t g_libc_mutex;
 
 static void *evp_Thread(void *arg);
 static void  ConfigurationCallback(const char *topic, const void *config, size_t config_len, void *private_data);
+
+void
+arc4random_buf(char *buf, size_t n)
+{
+        /* WARNING: this is just for testing. DO NOT use it for production! */
+        while (n) {
+                pthread_mutex_lock(&g_libc_mutex);
+                int x = random();
+                pthread_mutex_unlock(&g_libc_mutex);
+                size_t inc = n < sizeof(x) ? n : sizeof(x);
+                pthread_mutex_lock(&g_libc_mutex);
+                memcpy(buf, (void *)&x, inc);
+                pthread_mutex_unlock(&g_libc_mutex);
+                buf += inc;
+                n -= inc;
+        }
+}
+
+void
+prepare_crypto()
+{
+        fprintf(stderr, " arc4random_buf(...)\n");
+        arc4random_buf((char *) secret_key, 32);
+        fprintf(stderr, " arc4random_buf(...);\n");
+
+        fprintf(stderr, " crypto_x25519_public_key(...)\n");
+        crypto_x25519_public_key(public_key, secret_key);
+        fprintf(stderr, " crypto_x25519_public_key(...);\n");
+//        get_shared_key(shared_key, sizeof(shared_key), operator_public_key);
+}
 
 /* -------------------------------------------------------- */
 /* public function                                          */
@@ -49,6 +91,8 @@ static void  ConfigurationCallback(const char *topic, const void *config, size_t
 int main(int argc, char *argv[]) {
     pthread_t         evpthread_handle;
     int32_t           ret = -1;
+
+    fprintf(stderr, "START OF MODULE (STDERR)\n");
 
     if (pthread_mutex_init(&g_libc_mutex, NULL) != 0) {
         printf("pthread_mutex_init failed libc_mutex");
@@ -61,6 +105,11 @@ int main(int argc, char *argv[]) {
     }
 
     INFO_PRINTF("vision app encryption start\n");
+
+    fprintf(stderr, "prepare_crypto()\n");
+    
+    fprintf(stderr, "prepare_crypto();\n");
+
 
     ret = pthread_create(&evpthread_handle, NULL, evp_Thread, NULL);
     if (ret != 0) {
