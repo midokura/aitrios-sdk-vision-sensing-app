@@ -18,8 +18,8 @@
 DEBUG ?= 0
 
 CLEAN_DIR = $(PWD)/build
-DEBUG_BUILD_DIR = $(PWD)/build/debug/sample/vision_app/single_dnn/classification
-RELEASE_BUILD_DIR = $(PWD)/build/release/sample/vision_app/single_dnn/classification
+DEBUG_BUILD_DIR = $(PWD)/build/debug/sample/vision_app/single_dnn/encryption
+RELEASE_BUILD_DIR = $(PWD)/build/release/sample/vision_app/single_dnn/encryption
 ifeq ($(DEBUG), 1)
 	BUILD_DIR = $(DEBUG_BUILD_DIR)
 	WASM_OUT_DIR = $(PWD)/build/debug
@@ -61,16 +61,13 @@ USER_LDFLAGS   = -z stack-size=32768 \
                  -Wl,--initial-memory=65536,--max-memory=2097152
 CFLAGS        += $(USER_CFLAGS)
 CPPFLAGS      += $(USER_CPPFLAGS) \
-                -I ../../../../sample/include/classification \
-                -I ../../../../sample/post_process/classification/include
+                -I ../../../../sample/include/encryption \
 LDFLAGS       += $(USER_LDFLAGS)
-CPPOBJS        = ./src/vision_app_classification.o \
-                ../../../../sample/post_process/classification/src/analyzer_classification.o \
+CPPOBJS        = ./src/vision_app_encryption.o \
                 $(THIRD_PARTY_PATH)/parson/parson.o
-CPPOBJS_OUT    = $(BUILD_DIR)/src/vision_app_classification.o \
-                $(BUILD_DIR)/../../../../sample/post_process/classification/src/analyzer_classification.o \
+CPPOBJS_OUT    = $(BUILD_DIR)/src/vision_app_encryption.o \
                 $(BUILD_DIR)/$(THIRD_PARTY_PATH)/parson/parson.o
-TARGET         = vision_app_classification
+TARGET         = vision_app_encryption
 
 %.o: %.c
 	mkdir -p $(BUILD_DIR)/$(dir $@)
