@@ -44,16 +44,68 @@
 
 static bool  s_is_evp_exit = false;
 
-//#include "operator_public_key.h"
+#include "operator_public_key.h"
 
 static uint8_t secret_key[32];
 static uint8_t public_key[32];
+static uint8_t shared_key[32];
+
 
 /* prevent libc func with multi thread */
 pthread_mutex_t g_libc_mutex;
 
 static void *evp_Thread(void *arg);
 static void  ConfigurationCallback(const char *topic, const void *config, size_t config_len, void *private_data);
+
+void
+append_bytearray_hex_encode(char **output, uint8_t *array, size_t len) {
+        for (int i = 0; i < len; i++) {
+                pthread_mutex_lock(&g_libc_mutex);
+                sprintf((*output) + 2 * i, "%02x", array[i]);
+                pthread_mutex_unlock(&g_libc_mutex);
+        }
+        *output += 2 * len;
+}
+
+void
+get_shared_key(uint8_t *shared_key, size_t shared_key_len,
+               const uint8_t operator_public_key[32])
+{
+        /* get temporary shared secret */
+        uint8_t shared_secret[32];
+
+        fprintf(stderr, "  crypto_x25519(...)\n");
+        crypto_x25519(
+                shared_secret, secret_key,
+                operator_public_key); /* TODO: move this to device agent */
+        fprintf(stderr, "  crypto_x25519(...);\n");
+
+        /* derive shared key */
+        crypto_blake2b_ctx ctx;
+        fprintf(stderr, "  crypto_blake2b_init(...)\n");
+        crypto_blake2b_init(&ctx, shared_key_len);
+        fprintf(stderr, "  crypto_blake2b_init(...);\n");
+
+        fprintf(stderr, "  crypto_blake2b_update(...)\n");
+        crypto_blake2b_update(&ctx, shared_secret, 32);
+        fprintf(stderr, "  crypto_blake2b_update(...);\n");
+
+        fprintf(stderr, "  crypto_blake2b_update(...)\n");
+        crypto_blake2b_update(&ctx, public_key, 32);
+        fprintf(stderr, "  crypto_blake2b_update(...);\n");
+
+        fprintf(stderr, "  crypto_blake2b_update(...)\n");
+        crypto_blake2b_update(&ctx, operator_public_key, 32);
+        fprintf(stderr, "  crypto_blake2b_update(...);\n");
+
+        fprintf(stderr, "  crypto_blake2b_final(...)\n");
+        crypto_blake2b_final(&ctx, shared_key);
+        fprintf(stderr, "  crypto_blake2b_final(...);\n");
+
+        fprintf(stderr, "  crypto_wipe(...)\n");
+        crypto_wipe(shared_secret, 32);
+        fprintf(stderr, "  crypto_wipe(...);\n");
+}
 
 void
 arc4random_buf(char *buf, size_t n)
@@ -73,6 +125,60 @@ arc4random_buf(char *buf, size_t n)
 }
 
 void
+encrypt_text(char *text /* in/out */, uint8_t mac[16] /* out */,
+             uint8_t nonce[24] /* out */, uint8_t key[32] /* in */)
+{
+        /* generate nonce */
+        fprintf(stderr, "  arc4random_buf(...)\n");
+        arc4random_buf(nonce, 24);
+        fprintf(stderr, "  arc4random_buf(...);\n");
+
+        /* encrypt text (and generate mac) */
+        fprintf(stderr, "  crypto_aead_lock(...)\n");
+        crypto_aead_lock((uint8_t *)text, mac, key, nonce, NULL, 0,
+                         (uint8_t *)text, strlen(text));
+        fprintf(stderr, "  crypto_aead_lock(...);\n");
+}
+
+char *
+encrypt_telemetry_value(char *value)
+{
+        uint8_t mac[16];
+        uint8_t nonce[24];
+        pthread_mutex_lock(&g_libc_mutex);
+        size_t value_len = strlen(value);
+        pthread_mutex_unlock(&g_libc_mutex);
+
+        fprintf(stderr, " encrypt_text(...)\n");
+        encrypt_text(value, mac, nonce, shared_key);
+        fprintf(stderr, " encrypt_text(...);\n");
+
+        pthread_mutex_lock(&g_libc_mutex);
+        char *ciphertext = (char *) malloc(1 + 2 * (sizeof(public_key) + sizeof(nonce) + sizeof(mac) + value_len) + 1 + 1);
+        pthread_mutex_unlock(&g_libc_mutex);
+        char *cursor = ciphertext;
+
+        *cursor++ = '"';
+        fprintf(stderr, " append_bytearray_hex_encode(...)\n");
+        append_bytearray_hex_encode(&cursor, public_key, sizeof(public_key));
+        fprintf(stderr, " append_bytearray_hex_encode(...);\n");
+        fprintf(stderr, " append_bytearray_hex_encode(...)\n");
+        append_bytearray_hex_encode(&cursor, nonce, sizeof(nonce));
+        fprintf(stderr, " append_bytearray_hex_encode(...);\n");
+        fprintf(stderr, " append_bytearray_hex_encode(...)\n");
+        append_bytearray_hex_encode(&cursor, (uint8_t *) value, value_len);
+        fprintf(stderr, " append_bytearray_hex_encode(...);\n");
+        fprintf(stderr, " append_bytearray_hex_encode(...)\n");
+        append_bytearray_hex_encode(&cursor, mac, sizeof(mac));
+        fprintf(stderr, " append_bytearray_hex_encode(...);\n");
+        *cursor++ = '"';
+        *cursor = '\0';
+
+        return ciphertext;
+}
+
+
+void
 prepare_crypto()
 {
         fprintf(stderr, " arc4random_buf(...)\n");
@@ -82,7 +188,10 @@ prepare_crypto()
         fprintf(stderr, " crypto_x25519_public_key(...)\n");
         crypto_x25519_public_key(public_key, secret_key);
         fprintf(stderr, " crypto_x25519_public_key(...);\n");
-//        get_shared_key(shared_key, sizeof(shared_key), operator_public_key);
+
+        fprintf(stderr, " get_shared_key(...)\n");
+        get_shared_key(shared_key, sizeof(shared_key), operator_public_key);
+        fprintf(stderr, " get_shared_key(...);\n");
 }
 
 /* -------------------------------------------------------- */
@@ -107,7 +216,7 @@ int main(int argc, char *argv[]) {
     INFO_PRINTF("vision app encryption start\n");
 
     fprintf(stderr, "prepare_crypto()\n");
-    
+    prepare_crypto();
     fprintf(stderr, "prepare_crypto();\n");
 
 
@@ -157,6 +266,17 @@ static void *evp_Thread(void *arg) {
         else {
             /* Do Nothing */
         }
+
+        char value[] = "foo";
+        fprintf(stderr, "encrypt_telemetry_value(...)\n");
+        char* ciphertext = encrypt_telemetry_value(value);
+        fprintf(stderr, "encrypt_telemetry_value(...);\n");
+
+        fprintf(stderr, "ciphertext: '%s'\n", ciphertext);
+
+        pthread_mutex_lock(&g_libc_mutex);
+        free(ciphertext);
+        pthread_mutex_unlock(&g_libc_mutex);
     }
 
     return NULL;
@@ -181,5 +301,27 @@ static void ConfigurationCallback(const char *topic, const void *config, size_t 
         return;
     }
 
+    pthread_mutex_lock(&g_libc_mutex);
+    char *value = (char *) malloc(configlen+1);
+    pthread_mutex_unlock(&g_libc_mutex);
+
+    if (value == NULL) {
+        fprintf(stderr, " malloc failed!\n");
+    } else {
+        pthread_mutex_lock(&g_libc_mutex);
+        memcpy(value, config, configlen);
+        pthread_mutex_unlock(&g_libc_mutex);
+        value[configlen] = '\0';
+
+        fprintf(stderr, " encrypt_telemetry_value(...)\n");
+        char* ciphertext = encrypt_telemetry_value(value);
+        fprintf(stderr, " encrypt_telemetry_value(...);\n");
+
+        fprintf(stderr, " ciphertext: '%s'\n", ciphertext);
+
+        pthread_mutex_lock(&g_libc_mutex);
+        free(ciphertext);
+        pthread_mutex_unlock(&g_libc_mutex);
+    }
     return;
 }
